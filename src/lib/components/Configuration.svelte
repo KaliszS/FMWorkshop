@@ -7,36 +7,15 @@
   let modFile = $state("");
   let gameFolder = $state("");
 
-  let isFormValid = $derived(() => {
-    const isEditionValid = edition.length === 4 && /^\d{4}$/.test(edition);
-    const isGameFolderValid = gameFolder.trim() !== "";
-    const isActionValid = action !== "";
-    const isModFileValid = action === "Install Mod" ? modFile.trim() !== "" : true;
-    
-    return isEditionValid && isGameFolderValid && isActionValid && isModFileValid;
+  let actionError = $derived(() => action === "" ? "Select an action" : "");
+  let editionError = $derived(() => !/^\d{4}$/.test(edition) ? "Enter a valid 4-digit year (e.g., 2024)" : "");
+  let modFileError = $derived(() => action === "Install Mod" && modFile === "" ? "Select a mod file" : "");
+  let gameFolderError = $derived(() => gameFolder.trim() === "" ? "Enter the game folder location" : "");
+
+
+  const isFormValid = $derived(() => {
+    return !actionError() && !editionError() && !modFileError() && !gameFolderError();
   });
-
-  function handleActionChange(value: string) {
-    action = value;
-
-    if (value === "Uninstall Mod") {
-      modFile = "";
-    }
-  }
-
-  function handleEditionChange(value: string) {
-    if (value.length <= 4 && /^\d*$/.test(value)) {
-      edition = value;
-    }
-  }
-
-  function handleModFileChange(value: string) {
-    modFile = value;
-  }
-
-  function handleGameFolderChange(value: string) {
-    gameFolder = value;
-  }
 
   function handleProcess() {
     // TODO: Implement processing logic
@@ -62,8 +41,7 @@
           type={ConfigOptionType.Radio}
           required={true}
           options={["Install Mod", "Uninstall Mod"]}
-          value={action}
-          onValueChange={handleActionChange}
+          bind:value={action}
           hint="Choose whether to install or uninstall a mod"
         />
         {#if action === "Install Mod"}
@@ -71,9 +49,9 @@
             label="Mod File"
             type={ConfigOptionType.File}
             required={true}
-            value={modFile}
-            onValueChange={handleModFileChange}
+            bind:value={modFile}
             hint="Select a .zip file containing the mod"
+            error={modFileError()}
           />
         {/if}
       </div>
@@ -82,19 +60,19 @@
           label="Football Manager Edition"
           type={ConfigOptionType.Input}
           required={true}
-          placeholder="2024"
-          value={edition}
-          onValueChange={handleEditionChange}
-          hint="Enter the 4-digit year (e.g., 2024)"
+          placeholder="e.g. 2024"
+          bind:value={edition}
+          hint="Choose year the game starts"
+          error={editionError()}
         />
         <ConfigOption
           label="Game Folder Location"
           type={ConfigOptionType.Folder}
           required={true}
           placeholder="Documents/Sports Interactive/Football Manager {edition}"
-          value={gameFolder}
-          onValueChange={handleGameFolderChange}
+          bind:value={gameFolder}
           hint="Location of your Football Manager installation"
+          error={gameFolderError()}
         />
       </div>
     </div>
@@ -102,7 +80,7 @@
     <div class="config-actions">
       <button 
         class="process-btn" 
-        disabled={!isFormValid}
+        disabled={!isFormValid()}
         onclick={handleProcess}
       >
         <span class="btn-text">
@@ -111,29 +89,6 @@
         <span class="btn-icon">→</span>
       </button>
     </div>
-
-    {#if !isFormValid}
-      <div class="validation-info">
-        <div class="validation-header">
-          <span class="validation-icon">⚠️</span>
-          <span class="validation-title">Please complete the following:</span>
-        </div>
-        <div class="validation-list">
-          {#if action === ""}
-            <div class="validation-item">Select an action</div>
-          {/if}
-          {#if edition.length !== 4 || !/^\d{4}$/.test(edition)}
-            <div class="validation-item">Enter a valid 4-digit year (e.g., 2024)</div>
-          {/if}
-          {#if action === "Install Mod" && modFile === ""}
-            <div class="validation-item">Select a mod file</div>
-          {/if}
-          {#if gameFolder.trim() === ""}
-            <div class="validation-item">Enter the game folder location</div>
-          {/if}
-        </div>
-      </div>
-    {/if}
   </div>
 </div>
 
@@ -194,6 +149,15 @@
     box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
   }
 
+  .process-btn:disabled {
+    opacity: 0.5;
+    background: #ccc;
+    color: #888;
+    cursor: not-allowed;
+    box-shadow: none;
+    pointer-events: none;
+  }
+
   .btn-icon {
     font-size: 1.1rem;
     transition: transform 0.3s ease;
@@ -203,61 +167,11 @@
     transform: translateX(4px);
   }
 
-  /* .validation-info {
-    background: #fff5f5;
-    border: 1px solid #fed7d7;
-    border-radius: 8px;
-    padding: 1rem;
-    margin-top: 1rem;
-  }
-
-  .validation-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .validation-icon {
-    font-size: 1rem;
-  }
-
-  .validation-title {
-    font-weight: 600;
-    color: #c53030;
-    font-size: 0.9rem;
-  }
-
-  .validation-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-
-  .validation-item {
-    color: #c53030;
-    font-size: 0.85rem;
-    padding-left: 1rem;
-    position: relative;
-  }
-
-  .validation-item::before {
-    content: '•';
-    position: absolute;
-    left: 0;
-    color: #c53030;
-    font-weight: bold;
-  } */
 
   @media (prefers-color-scheme: dark) {
     .configuration {
       background: #2a2a2a;
       border-color: rgba(255, 255, 255, 0.1);
     }
-
-    /* .validation-info {
-      background: rgba(197, 48, 48, 0.1);
-      border-color: rgba(197, 48, 48, 0.3);
-    } */
   }
 </style> 

@@ -1,18 +1,12 @@
 <script lang="ts">
-  let {options = [], value, placeholder = "", onValueChange}: {
-    options?: string[]; value: string; placeholder?: string; onValueChange: (value: string) => void
+  let {options = [], value = $bindable(), placeholder = ""}: {
+    options?: string[]; value: string; placeholder?: string
   } = $props();
-
-  function handleSelectChange(event: Event) {
-    const target = event.target as HTMLSelectElement;
-    onValueChange(target.value);
-  }
 </script>
 
 <select 
   class="input" 
-  value={value} 
-  onchange={handleSelectChange}
+  bind:value={value} 
 >
   <option value="">{placeholder}</option>
   {#each options as option}

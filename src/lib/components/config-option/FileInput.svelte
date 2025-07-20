@@ -1,42 +1,32 @@
 <script lang="ts">
-  let {label, value, onValueChange}: {
-    label: string; value: string; onValueChange: (value: string) => void
+  import { loadFile } from "$lib/api";
+
+  let {value = $bindable()}: {
+    value: string
   } = $props();
 
-  function handleFileChange(event: Event) {
-    const target = event.target as HTMLInputElement;
-    if (target.files && target.files[0]) {
-      onValueChange(target.files[0].name);
+  async function selectFile() {
+    let path = await loadFile(false);
+    if (path) {
+      if (!path.endsWith('.zip') && !path.endsWith('.rar')) {
+        value = "";
+      } else {
+        value = path;
+      }
     }
   }
 </script>
 
 <div class="file-input-container">
-  <input 
-    type="file" 
-    class="file-input" 
-    accept=".zip"
-    onchange={handleFileChange}
-    id="file-input-{label.toLowerCase().replace(/\s+/g, '-')}"
-  />
-  <label for="file-input-{label.toLowerCase().replace(/\s+/g, '-')}" class="file-label">
+  <button type="button" class="file-label" onclick={selectFile}>
     <span class="file-icon">📁</span>
-    <span class="file-text">
-      {value ? value : 'Choose ZIP file'}
-    </span>
-  </label>
-</div> 
+    <span class="file-text">{value ? value : 'Choose ZIP or RAR file'}</span>
+  </button>
+</div>
 
 <style>
   .file-input-container {
     position: relative;
-  }
-  .file-input {
-    position: absolute;
-    opacity: 0;
-    width: 100%;
-    height: 100%;
-    cursor: pointer;
   }
   .file-label {
     display: flex;
@@ -59,18 +49,10 @@
   .file-text {
     color: #666;
   }
-  .input {
-    width: 100%;
-    padding: 0.6rem;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    font-size: 0.9rem;
-    background-color: #fff;
-    transition: border-color 0.2s ease;
-  }
-  .input:focus {
-    outline: none;
-    border-color: #667eea;
+  .file-error {
+    color: #e74c3c;
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
   }
   @media (prefers-color-scheme: dark) {
     .file-label {
@@ -80,14 +62,6 @@
     }
     .file-text {
       color: #ccc;
-    }
-    .input {
-      background-color: #2a2a2a;
-      border-color: #444;
-      color: #f6f6f6;
-    }
-    .input:focus {
-      border-color: #667eea;
     }
   }
 </style>

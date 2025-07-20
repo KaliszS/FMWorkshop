@@ -1,20 +1,14 @@
 <script lang="ts">
-  let {value, placeholder = "", onValueChange}: {
-    value: string, placeholder?: string; onValueChange: (value: string) => void
+  let {value = $bindable(), placeholder = ""}: {
+    value: string, placeholder?: string
   } = $props();
-
-  function handleInputChange(event: Event) {
-    const target = event.target as HTMLInputElement;
-    onValueChange(target.value);
-  }
 </script>
 
 <input 
   type="text" 
   class="input" 
   placeholder={placeholder}
-  value={value} 
-  oninput={handleInputChange}
+  bind:value={value} 
 /> 
 
 <style>

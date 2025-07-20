@@ -1,64 +1,32 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  let { value, placeholder = '', onValueChange, label = 'Select folder' }: {
-    value: string; placeholder?: string; onValueChange: (value: string) => void; label?: string
+  import { loadFile } from "$lib/api";
+
+  let { value = $bindable(), placeholder = '', label = 'Select folder' }: {
+    value: string; placeholder?: string; label?: string
   } = $props();
   
-  let fileInputEl: HTMLInputElement | null = null;
   const inputId = `folder-input-${label.toLowerCase().replace(/\s+/g, '-')}`;
 
-  let isTauri = false;
-  onMount(() => {
-    // Tauri injects a global window.__TAURI__
-    isTauri = typeof window !== 'undefined' && '__TAURI__' in window;
-  });
-
-  async function triggerBrowse() {
-    if (isTauri) {
-      // Dynamically import to avoid errors in browser
-      const { open } = await import('@tauri-apps/plugin-dialog');
-      const selected = await open({ directory: true });
-      if (typeof selected === 'string') {
-        onValueChange(selected);
-      }
-    } else {
-      fileInputEl?.click();
-    }
-  }
-
-  function handleFolderChange(event: Event) {
-    const target = event.target as HTMLInputElement;
-    if (target.files && target.files.length > 0) {
-      // Try to get the folder name from the first file's relative path
-      const firstFile = target.files[0];
-      // @ts-ignore
-      const fullPath = firstFile.webkitRelativePath || firstFile.name;
-      const folderPath = fullPath.split('/')[0];
-      onValueChange(folderPath);
+  async function selectDirectory() {
+    let path = await loadFile(true);
+    if (path) {
+      value = path;
     }
   }
 </script>
 
 <div class="folder-input">
   <label for={inputId} class="visually-hidden">{label}</label>
-  <input 
+  <input
     id={inputId}
-    type="text" 
-    class="input" 
+    type="text"
+    class="input"
     placeholder={placeholder}
-    value={value} 
+    bind:value={value}
     readonly
     aria-labelledby={inputId}
   />
-  <input
-    type="file"
-    style="display: none;"
-    bind:this={fileInputEl}
-    webkitdirectory
-    onchange={handleFolderChange}
-    aria-labelledby={inputId}
-  />
-  <button type="button" class="browse-btn" onclick={triggerBrowse}>Browse</button>
+  <button type="button" class="browse-btn" onclick={selectDirectory}>Browse</button>
 </div>
 
 <style>

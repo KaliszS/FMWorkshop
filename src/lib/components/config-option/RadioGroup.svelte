@@ -1,6 +1,6 @@
 <script lang="ts">
-  let {label, options = [], value, onValueChange}: {
-    label: string; options?: string[]; value: String; onValueChange: (value: string) => void
+  let {label, options = [], value = $bindable()}: {
+    label: string; options?: string[]; value: String
   } = $props();
 </script>
 
@@ -10,9 +10,9 @@
       <input 
         type="radio" 
         name={label.toLowerCase().replace(/\s+/g, '-')}
+        bind:group={value}
         value={option}
         checked={value === option}
-        onchange={() => onValueChange(option)}
       />
       <span class="radio-custom"></span>
       <span class="radio-label">{option}</span>
