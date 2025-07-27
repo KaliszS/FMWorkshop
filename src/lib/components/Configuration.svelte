@@ -3,20 +3,28 @@
   import { ConfigOptionType } from '$lib/types';
   import { handleModProcessing } from '$lib/modProcessor';
 
-  let { action = $bindable(), edition = $bindable(), modFile = $bindable(), gameFolder = $bindable() }: {
+  let { action = $bindable(), edition = $bindable(), modFile = $bindable(""), gameFolder = $bindable(), restoreFolder = $bindable("") }: {
     action: string;
     edition: string;
-    modFile: string;
+    modFile?: string;
     gameFolder: string;
+    restoreFolder?: string;
   } = $props();
 
   let actionError = $derived(() => action === "" ? "Select an action" : "");
   let editionError = $derived(() => !/^\d{4}$/.test(edition) ? "Enter a valid 4-digit year (e.g., 2024)" : "");
-  let modFileError = $derived(() => action === "Install Mod" && modFile === "" ? "Select a mod file" : "");
+  let modFileError = $derived(() => {
+    if (action !== "Install Mod") return "";
+    return (!modFile || modFile.trim() === "") ? "Select a mod file" : "";
+  });
   let gameFolderError = $derived(() => gameFolder.trim() === "" ? "Enter the game folder location" : "");
+  let restoreFolderError = $derived(() => {
+    if (action !== "Uninstall Mod") return "";
+    return (!restoreFolder || restoreFolder.trim() === "") ? "Select restore folder location" : "";
+  });
 
   const isFormValid = $derived(() => {
-    return !actionError() && !editionError() && !modFileError() && !gameFolderError();
+    return !actionError() && !editionError() && !modFileError() && !gameFolderError() && !restoreFolderError();
   });
 
   async function handleProcess() {
@@ -25,7 +33,8 @@
         action,
         edition,
         modFile,
-        gameFolder
+        gameFolder,
+        restoreFolder
       });
     } catch (error) {
       console.error("Error in component:", error);
@@ -57,6 +66,16 @@
             bind:value={modFile}
             hint="Select a .zip file containing the mod"
             error={modFileError()}
+          />
+        {/if}
+        {#if action === "Uninstall Mod"}
+          <ConfigOption
+            label="Restore Folder"
+            type={ConfigOptionType.Folder}
+            required={true}
+            bind:value={restoreFolder}
+            hint="Select where to restore the original files"
+            error={restoreFolderError()}
           />
         {/if}
       </div>

@@ -1,19 +1,17 @@
 import { transfer, isDir } from "tauri-plugin-fs-pro-api";
-import { mkdir, remove } from "@tauri-apps/plugin-fs";
-
+import { invoke } from "@tauri-apps/api/core";
 import type { ModProcessingOptions } from '$lib/types';
-
 
 export async function handleModProcessing(options: ModProcessingOptions): Promise<void> {
     try {
         console.log("Processing with:", options);
 
         if (options.action === "Install Mod") {
-        await installMod(options);
+            await installMod(options);
         } else if (options.action === "Uninstall Mod") {
-        await uninstallMod(options);
+            await uninstallMod(options);
         } else {
-        throw new Error(`Unknown action: ${options.action}`);
+            throw new Error(`Unknown action: ${options.action}`);
         }
     } catch (error) {
         console.error("Error processing mod:", error);
@@ -21,11 +19,12 @@ export async function handleModProcessing(options: ModProcessingOptions): Promis
     }
 }
 
-/**
- * Installs a mod by backing up existing files and transferring new ones
- */
 async function installMod(options: ModProcessingOptions): Promise<void> {
     const { modFile, gameFolder, edition } = options;
+
+    if (!modFile) {
+        throw new Error("Mod file is required for install operation");
+    }
 
     if (await isDir(gameFolder)) {
         console.log("Game folder exists:", gameFolder);
@@ -40,62 +39,53 @@ async function installMod(options: ModProcessingOptions): Promise<void> {
     console.log("Mod transferred successfully!");
 }
 
-/**
- * Uninstalls a mod by restoring from backup
- */
 async function uninstallMod(options: ModProcessingOptions): Promise<void> {
-    const { gameFolder, edition } = options;
-    await restoreFromBackup(gameFolder, edition);
+    const { gameFolder, edition, restoreFolder } = options;
+    
+    if (await isDir(restoreFolder)) {
+        await restoreFromBackup(gameFolder, edition, restoreFolder);
+    } else {
+        throw new Error("Restore folder is required for uninstall operation");
     }
+}
 
-/**
- * Creates a backup of the existing game folder
- */
 async function createBackup(gameFolder: string, edition: string): Promise<string> {
     const backupFolder = await getBackupFolderName(gameFolder, edition);
     console.log("Creating backup folder:", backupFolder);
 
-    await mkdir(backupFolder, { recursive: true });
-    await transfer(gameFolder, backupFolder);
-    console.log("Original contents transferred to backup");
+    await invoke("rename_directory", { oldPath: gameFolder, newPath: backupFolder });
+    console.log("Original folder renamed to backup");
 
     return backupFolder;
 }
 
-/**
- * Removes the current game folder and creates a new one
- */
 async function replaceGameFolder(gameFolder: string): Promise<void> {
-  await remove(gameFolder, { recursive: true });
-  console.log("Original folder removed");
-  
-  await mkdir(gameFolder, { recursive: true });
-  console.log("New game folder created");
+    await invoke("create_directory", { path: gameFolder });
+    console.log("New game folder created");
 }
 
-/**
- * Restores the original game folder from backup
- */
-async function restoreFromBackup(gameFolder: string, edition: string): Promise<void> {
+async function restoreFromBackup(gameFolder: string, edition: string, restoreFolder: string): Promise<void> {
     const backupFolder = await getBackupFolderName(gameFolder, edition);
 
     if (await isDir(backupFolder)) {
         console.log("Backup folder found:", backupFolder);
 
         if (await isDir(gameFolder)) {
-            await remove(gameFolder, { recursive: true });
+            await transfer(gameFolder, restoreFolder);
+            console.log("Mod contents transferred to restore folder: ", restoreFolder);
+
+            await invoke("remove_directory", { path: gameFolder });
             console.log("Current mod folder removed");
         }
 
-        await mkdir(gameFolder, { recursive: true });
+        await invoke("create_directory", { path: gameFolder });
+        console.log("New game folder created");
 
         await transfer(backupFolder, gameFolder);
-        console.log("Backup contents transferred back to original location");
+        console.log("Backup contents transferred to game folder");
 
-        await remove(backupFolder, { recursive: true });
+        await invoke("remove_directory", { path: backupFolder });
         console.log("Backup folder removed");
-
-        console.log("Original folder restored successfully!");
     } else {
         console.log("No backup folder found, cannot uninstall");
     }

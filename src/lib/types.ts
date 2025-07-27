@@ -9,6 +9,7 @@ export enum ConfigOptionType {
 export interface ModProcessingOptions {
     action: "Install Mod" | "Uninstall Mod";
     edition: string;
-    modFile: string;
+    modFile: string; // install action
     gameFolder: string;
-  }
+    restoreFolder: string; // uninstall action
+}
