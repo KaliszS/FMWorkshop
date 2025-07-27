@@ -1,6 +1,12 @@
 <script lang="ts">
+  import { unpackRar } from "$lib/api";
   import Configuration from '../lib/components/Configuration.svelte';
   const appVersion = "0.1.0";
+
+  let action = $state("");
+  let edition = $state("");
+  let modFile = $state("");
+  let gameFolder = $state("");
 </script>
 
 <main class="container">
@@ -12,7 +18,8 @@
   </div>
 
   <div class="content">
-    <Configuration />
+    <Configuration bind:action bind:edition bind:modFile bind:gameFolder />
+    <button onclick={() => unpackRar(modFile)}>Unpack RAR</button>
   </div>
 </main>
 

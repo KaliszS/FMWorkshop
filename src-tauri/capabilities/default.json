@@ -9,6 +9,7 @@
     "core:default",
     "opener:default",
     "fs:default",
+    "fs-pro:default",
     "dialog:default"
   ]
 }

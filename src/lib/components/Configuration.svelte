@@ -1,30 +1,35 @@
 <script lang="ts">
   import ConfigOption from './ConfigOption.svelte';
   import { ConfigOptionType } from '$lib/types';
+  import { handleModProcessing } from '$lib/modProcessor';
 
-  let action = $state("");
-  let edition = $state("");
-  let modFile = $state("");
-  let gameFolder = $state("");
+  let { action = $bindable(), edition = $bindable(), modFile = $bindable(), gameFolder = $bindable() }: {
+    action: string;
+    edition: string;
+    modFile: string;
+    gameFolder: string;
+  } = $props();
 
   let actionError = $derived(() => action === "" ? "Select an action" : "");
   let editionError = $derived(() => !/^\d{4}$/.test(edition) ? "Enter a valid 4-digit year (e.g., 2024)" : "");
   let modFileError = $derived(() => action === "Install Mod" && modFile === "" ? "Select a mod file" : "");
   let gameFolderError = $derived(() => gameFolder.trim() === "" ? "Enter the game folder location" : "");
 
-
   const isFormValid = $derived(() => {
     return !actionError() && !editionError() && !modFileError() && !gameFolderError();
   });
 
-  function handleProcess() {
-    // TODO: Implement processing logic
-    console.log("Processing with:", {
-      action,
-      edition,
-      modFile,
-      gameFolder
-    });
+  async function handleProcess() {
+    try {
+      await handleModProcessing({
+        action,
+        edition,
+        modFile,
+        gameFolder
+      });
+    } catch (error) {
+      console.error("Error in component:", error);
+    }
   }
 </script>
 

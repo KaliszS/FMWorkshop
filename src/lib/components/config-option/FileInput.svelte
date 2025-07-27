@@ -6,13 +6,14 @@
   } = $props();
 
   async function selectFile() {
-    let path = await loadFile(false);
+    let path = await loadFile(true);
     if (path) {
-      if (!path.endsWith('.zip') && !path.endsWith('.rar')) {
-        value = "";
-      } else {
-        value = path;
-      }
+      // if (!path.endsWith('.zip') && !path.endsWith('.rar')) {
+      //   value = "";
+      // } else {
+      //   value = path;
+      // }
+      value = path;
     }
   }
 </script>
