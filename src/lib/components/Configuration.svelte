@@ -2,17 +2,27 @@
   import ConfigOption from './ConfigOption.svelte';
   import { ConfigOptionType } from '$lib/types';
   import { handleModProcessing } from '$lib/modProcessor';
+  import { getRetroRegensPaths } from '$lib/types';
 
-  let { action = $bindable(), edition = $bindable(), modFile = $bindable(""), gameFolder = $bindable(), restoreFolder = $bindable("") }: {
+  let { action = $bindable(), edition = $bindable(), gameVersion = $bindable(""), modFile = $bindable(""), gameFolder = $bindable(), restoreFolder = $bindable(""), retroRegensFolder = $bindable("") }: {
     action: string;
     edition: string;
-    modFile?: string;
+    gameVersion: string;
+    modFile: string;
     gameFolder: string;
-    restoreFolder?: string;
+    restoreFolder: string;
+    retroRegensFolder: string;
   } = $props();
 
   let actionError = $derived(() => action === "" ? "Select an action" : "");
   let editionError = $derived(() => !/^\d{4}$/.test(edition) ? "Enter a valid 4-digit year (e.g., 2024)" : "");
+  let gameVersionError = $derived(() => {
+    if (!edition || edition.trim() === "") return "";
+    if (!/^\d{4}$/.test(gameVersion)) return "Enter a valid 4-digit version (e.g., 2400)";
+    if (gameVersion.substring(0, 2) !== edition.substring(2, 4)) return "First two digits must match last two digits of edition";
+    if (gameVersion.charAt(3) !== "0") return "Last digit must be 0";
+    return "";
+  });
   let modFileError = $derived(() => {
     if (action !== "Install Mod") return "";
     return (!modFile || modFile.trim() === "") ? "Select a mod file" : "";
@@ -22,9 +32,13 @@
     if (action !== "Uninstall Mod") return "";
     return (!restoreFolder || restoreFolder.trim() === "") ? "Select restore folder location" : "";
   });
+  let retroRegensFolderError = $derived(() => {
+    if (!edition || edition.trim() === "" || !gameVersion || gameVersion.trim() === "") return "";
+    return retroRegensFolder.trim() === "" ? "Select Retro Regens folder location" : "";
+  });
 
   const isFormValid = $derived(() => {
-    return !actionError() && !editionError() && !modFileError() && !gameFolderError() && !restoreFolderError();
+    return !actionError() && !editionError() && !gameVersionError() && !modFileError() && !gameFolderError() && !restoreFolderError() && !retroRegensFolderError();
   });
 
   async function handleProcess() {
@@ -32,9 +46,11 @@
       await handleModProcessing({
         action,
         edition,
+        gameVersion,
         modFile,
         gameFolder,
-        restoreFolder
+        restoreFolder,
+        retroRegensFolder
       });
     } catch (error) {
       console.error("Error in component:", error);
@@ -99,6 +115,30 @@
           error={gameFolderError()}
         />
       </div>
+      <div class="config-row">
+        {#if edition && edition.trim() !== "" && !editionError()}
+          <ConfigOption
+            label="Game Version"
+            type={ConfigOptionType.Input}
+            required={true}
+            placeholder="e.g. 2400"
+            bind:value={gameVersion}
+            hint="Game version (first 2 digits from edition, last digit must be 0)"
+            error={gameVersionError()}
+          />
+        {/if}
+        {#if edition && edition.trim() !== "" && !editionError() && gameVersion && gameVersion.trim() !== "" && !gameVersionError()}
+          <ConfigOption
+            label="Retro Regens Folder"
+            type={ConfigOptionType.Folder}
+            required={true}
+            options={Object.values(getRetroRegensPaths(edition, gameVersion))}
+            bind:value={retroRegensFolder}
+            hint="Location for Retro Regens files"
+            error={retroRegensFolderError()}
+          />
+        {/if}
+      </div>
     </div>
 
     <div class="config-actions">
@@ -140,9 +180,13 @@
 
   .config-row {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    grid-template-columns: 1fr 1fr;
     gap: 2rem;
     margin-bottom: 1rem;
+  }
+
+  .config-row > * {
+    min-width: 0;
   }
 
   .config-actions {

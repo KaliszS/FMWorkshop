@@ -5,8 +5,11 @@
 
   let action = $state("");
   let edition = $state("");
+  let gameVersion = $state("");
   let modFile = $state("");
   let gameFolder = $state("");
+  let restoreFolder = $state("");
+  let retroRegensFolder = $state("");
 </script>
 
 <main class="container">
@@ -18,7 +21,7 @@
   </div>
 
   <div class="content">
-    <Configuration bind:action bind:edition bind:modFile bind:gameFolder />
+    <Configuration bind:action bind:edition bind:gameVersion bind:modFile bind:gameFolder bind:restoreFolder bind:retroRegensFolder />
     <button onclick={() => unpackRar(modFile)}>Unpack RAR</button>
   </div>
 </main>

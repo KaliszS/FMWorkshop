@@ -42,24 +42,28 @@
     <p class="hint">{hint}</p>
   {/if}
 
-  {#if error}
-    <span class="error-icon-wrapper" aria-label="Error: {error}">
-      <span class="error-icon">&#9888;</span>
-      <span class="error-tooltip">{error}</span>
-    </span>
-  {/if}
-
-  {#if type === ConfigOptionType.Radio}
-    <RadioGroup {label} {options} bind:value={value} />
-  {:else if type === ConfigOptionType.Select}
-    <SelectInput {options} bind:value={value} {placeholder} />
-  {:else if type === ConfigOptionType.Input}
-    <TextInput bind:value={value} {placeholder}/>
-  {:else if type === ConfigOptionType.File}
-    <FileInput bind:value={value}/>
-  {:else if type === ConfigOptionType.Folder}
-    <FolderInput bind:value={value} {placeholder} label={label} />
-  {/if}
+  <div class="field-container">
+    {#if error}
+      <span class="error-icon-wrapper" aria-label="Error: {error}">
+        <span class="error-icon">&#9888;</span>
+        <span class="error-tooltip">{error}</span>
+      </span>
+    {/if}
+    
+    <div class="input-wrapper">
+      {#if type === ConfigOptionType.Radio}
+        <RadioGroup {label} {options} bind:value={value} />
+      {:else if type === ConfigOptionType.Select}
+        <SelectInput {options} bind:value={value} {placeholder} />
+      {:else if type === ConfigOptionType.Input}
+        <TextInput bind:value={value} {placeholder}/>
+      {:else if type === ConfigOptionType.File}
+        <FileInput bind:value={value}/>
+      {:else if type === ConfigOptionType.Folder}
+        <FolderInput bind:value={value} {placeholder} label={label} {options} />
+      {/if}
+    </div>
+  </div>
 </div>
 
 <style>
@@ -83,24 +87,35 @@
     margin: 0.25rem 0 0.5rem 0;
     font-style: italic;
   }
+  .field-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .input-wrapper {
+    flex: 1;
+    min-width: 0;
+  }
   .error-icon-wrapper {
-    display: inline-block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
     position: relative;
-    margin-left: 0.5em;
-    vertical-align: middle;
     cursor: pointer;
     outline: none;
+    flex-shrink: 0;
   }
   .error-icon {
     color: #e74c3c;
     font-size: 1.1em;
-    vertical-align: middle;
     user-select: none;
   }
   .error-tooltip {
     display: none;
     position: absolute;
-    left: 120%;
+    left: 100%;
     top: 50%;
     transform: translateY(-50%);
     background: #e74c3c;
@@ -113,6 +128,16 @@
     z-index: 10;
     min-width: 180px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    margin-left: 8px;
+  }
+  .error-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: -5px;
+    transform: translateY(-50%);
+    border: 5px solid transparent;
+    border-right-color: #e74c3c;
   }
   .error-icon-wrapper:hover .error-tooltip,
   .error-icon-wrapper:focus .error-tooltip {
