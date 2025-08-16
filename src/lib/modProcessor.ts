@@ -7,7 +7,7 @@ export async function handleModProcessing(options: ModProcessingOptions): Promis
         console.log("Processing with:", options);
 
         if (options.action === "Install Mod") {
-            await installMod(options);
+            //await installMod(options);
         } else if (options.action === "Uninstall Mod") {
             await uninstallMod(options);
         } else {
@@ -26,28 +26,30 @@ async function installMod(options: ModProcessingOptions): Promise<void> {
         throw new Error("Mod file is required for install operation");
     }
 
-    const gameModDir = `${modFile}/Football Manager ${edition}`;
-    const retroRegensDir = `${modFile}/retro_regens`;
+    const modFileUnpackedGameRoot = `${modFile}/Football Manager ${edition}`;
+    const modFileUnpackedRegensRoot = `${modFile}/`;
 
-    if (!(await isDir(gameModDir))) {
-        throw new Error(`Game mod directory not found: ${gameModDir}`);
+    if (!(await isDir(modFileUnpackedGameRoot))) {
+        throw new Error(`Not found game directory in unpacked modification to install: ${modFileUnpackedGameRoot}`);
     }
 
     if (await isDir(gameFolder)) {
-        console.log("Game folder exists:", gameFolder);
+        console.log("Game location to install mod exists:", gameFolder);
         
         await createBackup(gameFolder, edition);
         await replaceGameFolder(gameFolder);
     } else {
-        throw new Error(`Game folder does not exist: ${gameFolder}`);
+        throw new Error(`Game location to install mod not exist: ${gameFolder}`);
     }
 
-    await transfer(gameModDir, gameFolder);
+    await transfer(modFileUnpackedGameRoot, gameFolder);
     console.log("Game mod files transferred successfully!");
 
 
-    if (await isDir(retroRegensDir)) {
-        await processRetroRegens(retroRegensDir, retroRegensFolder);
+    if (await isDir(modFileUnpackedRegensRoot)) {
+        await processRetroRegens(modFileUnpackedRegensRoot, retroRegensFolder, edition);
+    } else {
+        console.log("Not found regens directory in unpacked modification to install: ", modFileUnpackedRegensRoot);
     }
 }
 
@@ -69,7 +71,7 @@ async function uninstallMod(options: ModProcessingOptions): Promise<void> {
     await cleanupRetroRegens(retroRegensFolder);
 }
 
-async function processRetroRegens(retroRegensDir: string, retroRegensFolder: string): Promise<void> {
+async function processRetroRegens(retroRegensDir: string, retroRegensFolder: string, edition: string): Promise<void> {
     console.log("Processing retro regens files...");
     
     // Read directory to find .edt files
@@ -83,16 +85,30 @@ async function processRetroRegens(retroRegensDir: string, retroRegensFolder: str
 
     // Process each .edt file
     for (const edtFile of edtFiles) {
-        const sourcePath = `${retroRegensDir}/${edtFile}`;
-        const fileName = edtFile.replace('.edt', '');
+        // Validate file pattern: ??_xxxx.edt where xxxx matches edition
+        const pattern = /^.._(\d{4})\.edt$/;
+        const match = edtFile.match(pattern);
         
-        // Extract the number from filename (e.g., "2400" from "2400.edt")
-        const number = fileName;
+        if (!match) {
+            throw new Error(`Invalid retro regens file format: ${edtFile}. Expected format: ??_xxxx.edt`);
+        }
+        
+        const fileNumber = match[1]; // Extract the 4-digit number
+        const editionLastTwoDigits = edition.substring(2, 4); // Last two digits of edition
+        
+        // Check if first two digits of file number match last two digits of edition
+        if (fileNumber.substring(0, 2) !== editionLastTwoDigits) {
+            throw new Error(`File ${edtFile} number ${fileNumber} doesn't match edition ${edition} (expected ${editionLastTwoDigits}xx)`);
+        }
+        
+        const sourcePath = `${retroRegensDir}/${edtFile}`;
         
         // Replace the number in the retro regens folder path
         let targetPath = retroRegensFolder;
-        if (targetPath.includes('2400')) {
-            targetPath = targetPath.replace('2400', number);
+        // Only replace if the path contains the edition's last two digits followed by '00'
+        const editionSuffix = edition.substring(2,4) + '00';
+        if (targetPath.includes(editionSuffix)) {
+            targetPath = targetPath.replace(editionSuffix, fileNumber);
         }
         
         // Ensure target directory exists
@@ -127,14 +143,10 @@ async function cleanupRetroRegens(retroRegensFolder: string): Promise<void> {
     }
 }
 
-async function createBackup(gameFolder: string, edition: string): Promise<string> {
+async function createBackup(gameFolder: string, edition: string): Promise<void> {
     const backupFolder = await getBackupFolderName(gameFolder, edition);
     console.log("Creating backup folder:", backupFolder);
-
     await invoke("rename_directory", { oldPath: gameFolder, newPath: backupFolder });
-    console.log("Original folder renamed to backup");
-
-    return backupFolder;
 }
 
 async function replaceGameFolder(gameFolder: string): Promise<void> {

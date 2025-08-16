@@ -1,6 +1,6 @@
 <script lang="ts">
   let {label, options = [], value = $bindable()}: {
-    label: string; options?: string[]; value: String
+    label: string; options?: Array<string | { label: string; path: string }>; value: String
   } = $props();
 </script>
 
@@ -11,11 +11,11 @@
         type="radio" 
         name={label.toLowerCase().replace(/\s+/g, '-')}
         bind:group={value}
-        value={option}
-        checked={value === option}
+        value={typeof option === 'string' ? option : option.label}
+        checked={value === (typeof option === 'string' ? option : option.label)}
       />
       <span class="radio-custom"></span>
-      <span class="radio-label">{option}</span>
+      <span class="radio-label">{typeof option === 'string' ? option : option.label}</span>
     </label>
   {/each}
 </div>

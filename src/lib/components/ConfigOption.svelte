@@ -15,15 +15,19 @@
     placeholder = "",
     value = $bindable(),
     error = "",
+    pathMapping = [],
+    onCustomPath = undefined,
   }: {
     label: string;
     required: boolean;
     hint: string;
     type: ConfigOptionType;
-    options?: Array<string>;
+    options?: string[];
     placeholder?: string;
     value: string;
     error?: string;
+    pathMapping?: Array<{ label: string; path: string }>;
+    onCustomPath?: (path: string) => void;
   } = $props();
 
   // Generate a unique id for the input
@@ -60,7 +64,7 @@
       {:else if type === ConfigOptionType.File}
         <FileInput bind:value={value}/>
       {:else if type === ConfigOptionType.Folder}
-        <FolderInput bind:value={value} {placeholder} label={label} {options} />
+        <FolderInput bind:value={value} {placeholder} label={label} {options} {pathMapping} {onCustomPath} />
       {/if}
     </div>
   </div>

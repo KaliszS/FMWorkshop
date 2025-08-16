@@ -2,10 +2,10 @@
   import ConfigOption from './ConfigOption.svelte';
   import { ConfigOptionType } from '$lib/types';
   import { handleModProcessing } from '$lib/modProcessor';
-  import { getRetroRegensPaths } from '$lib/types';
+  import { getRetroRegensPaths, getRetroRegensPathFromLabel, type PathMapping } from '$lib/types';
 
   let { action = $bindable(), edition = $bindable(), gameVersion = $bindable(""), modFile = $bindable(""), gameFolder = $bindable(), restoreFolder = $bindable(""), retroRegensFolder = $bindable("") }: {
-    action: string;
+    action: "Install Mod" | "Uninstall Mod";
     edition: string;
     gameVersion: string;
     modFile: string;
@@ -14,7 +14,39 @@
     retroRegensFolder: string;
   } = $props();
 
-  let actionError = $derived(() => action === "" ? "Select an action" : "");
+  // Mutable path mapping for retro regens
+  let retroRegensPathMapping = $state<PathMapping[]>([]);
+
+  // Get retro regens options with labels and paths
+  let retroRegensOptions = $derived(() => {
+    if (!edition || !gameVersion) return [];
+    return getRetroRegensPaths(edition, gameVersion);
+  });
+
+  // Initialize path mapping when options change
+  $effect(() => {
+    if (retroRegensOptions().length > 0) {
+      retroRegensPathMapping = [...retroRegensOptions()];
+    }
+  });
+
+  // Handle adding custom path from browse
+  function handleRetroRegensCustomPath(customPath: string) {
+    console.log('handleRetroRegensCustomPath called with:', customPath);
+    console.log('Current mapping:', retroRegensPathMapping);
+    
+    if (customPath && !retroRegensPathMapping.find(p => p.path === customPath)) {
+      retroRegensPathMapping = [...retroRegensPathMapping, { label: customPath, path: customPath }];
+      retroRegensFolder = customPath;
+      console.log('Updated mapping:', retroRegensPathMapping);
+      console.log('Updated retroRegensFolder:', retroRegensFolder);
+      
+      // Force a UI update by triggering a reactive change
+      retroRegensPathMapping = [...retroRegensPathMapping];
+    }
+  }
+
+  let actionError = $derived(() => !action ? "Select an action" : "");
   let editionError = $derived(() => !/^\d{4}$/.test(edition) ? "Enter a valid 4-digit year (e.g., 2024)" : "");
   let gameVersionError = $derived(() => {
     if (!edition || edition.trim() === "") return "";
@@ -132,10 +164,13 @@
             label="Retro Regens Folder"
             type={ConfigOptionType.Folder}
             required={true}
-            options={Object.values(getRetroRegensPaths(edition, gameVersion))}
+            options={retroRegensPathMapping.map(option => option.label)}
             bind:value={retroRegensFolder}
             hint="Location for Retro Regens files"
             error={retroRegensFolderError()}
+            pathMapping={retroRegensPathMapping}
+            onCustomPath={handleRetroRegensCustomPath}
+
           />
         {/if}
       </div>
@@ -183,10 +218,6 @@
     grid-template-columns: 1fr 1fr;
     gap: 2rem;
     margin-bottom: 1rem;
-  }
-
-  .config-row > * {
-    min-width: 0;
   }
 
   .config-actions {

@@ -1,16 +1,33 @@
 <script lang="ts">
   let {options = [], value = $bindable(), placeholder = ""}: {
-    options?: string[]; value: string; placeholder?: string
+    options?: Array<string | { label: string; path: string }>; value: string; placeholder?: string
   } = $props();
 </script>
 
 <select 
   class="input" 
   bind:value={value} 
+  onchange={(e) => {
+    const target = e.target as HTMLSelectElement;
+    const selectedLabel = target.value;
+    if (selectedLabel) {
+      // Find the corresponding path for this label
+      const option = options.find(opt => 
+        typeof opt === 'string' ? opt === selectedLabel : opt.label === selectedLabel
+      );
+      if (option && typeof option === 'object') {
+        value = option.path;
+      }
+    }
+  }}
 >
   <option value="">{placeholder}</option>
   {#each options as option}
-    <option value={option}>{option}</option>
+    {#if typeof option === 'string'}
+      <option value={option}>{option}</option>
+    {:else}
+      <option value={option.label}>{option.label}</option>
+    {/if}
   {/each}
 </select> 
 

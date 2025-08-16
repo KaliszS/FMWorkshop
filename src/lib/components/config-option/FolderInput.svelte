@@ -1,8 +1,20 @@
 <script lang="ts">
   import { loadFile } from "$lib/api";
 
-  let { value = $bindable(), placeholder = '', label = 'Select folder', options = [] }: {
-    value: string; placeholder?: string; label?: string; options?: string[]
+  let { 
+    value = $bindable(), 
+    placeholder = '', 
+    label = 'Select folder', 
+    options = [],
+    pathMapping = [],
+    onCustomPath = undefined
+  }: {
+    value: string; 
+    placeholder?: string; 
+    label?: string; 
+    options?: string[];
+    pathMapping?: Array<{ label: string; path: string }>;
+    onCustomPath?: (path: string) => void;
   } = $props();
   
   const inputId = `folder-input-${label.toLowerCase().replace(/\s+/g, '-')}`;
@@ -10,34 +22,70 @@
   async function selectDirectory() {
     let path = await loadFile(true);
     if (path) {
-      value = path;
+      console.log('selectDirectory: Selected path:', path);
+      console.log('selectDirectory: Label:', label);
+      console.log('selectDirectory: onCustomPath exists:', !!onCustomPath);
+      
+      // If this is a retro regens folder and we have a custom path handler, add it to the mapping
+      if (label === 'Retro Regens Folder' && onCustomPath) {
+        console.log('selectDirectory: Calling onCustomPath with:', path);
+        onCustomPath(path);
+        // The value will be set by the onCustomPath handler in the parent component
+      } else {
+        // For non-retro regens folders, just set the value directly
+        console.log('selectDirectory: Setting value directly to:', path);
+        value = path;
+      }
     }
   }
+
+  // Handle dropdown selection
+  function handleDropdownChange(e: Event) {
+    const target = e.target as HTMLSelectElement;
+    const selectedLabel = target.value;
+    
+    if (selectedLabel && label === 'Retro Regens Folder') {
+      // Find the corresponding path from the mapping
+      const mapping = pathMapping.find(m => m.label === selectedLabel);
+      if (mapping) {
+        value = mapping.path;
+      }
+    }
+  }
+  
+  // Get the current selected label for the dropdown
+  let currentSelectedLabel = $derived(() => {
+    if (label === 'Retro Regens Folder' && value) {
+      const mapping = pathMapping.find(m => m.path === value);
+      return mapping ? mapping.label : '';
+    }
+    return '';
+  });
 </script>
 
 <div class="folder-input">
   <label for={inputId} class="visually-hidden">{label}</label>
   
+  <input
+    id={inputId}
+    type="text"
+    class="input {options && options.length > 0 ? 'has-options' : ''}"
+    placeholder={placeholder}
+    bind:value={value}
+    readonly
+    aria-labelledby={inputId}
+  />
   {#if options && options.length > 0}
     <select 
-      class="input has-options"
-      bind:value={value}
+      class="input dropdown-overlay"
+      value={currentSelectedLabel()}
+      onchange={handleDropdownChange}
     >
       <option value="">{placeholder || 'Select an option or browse...'}</option>
       {#each options as option}
         <option value={option}>{option}</option>
       {/each}
     </select>
-  {:else}
-    <input
-      id={inputId}
-      type="text"
-      class="input"
-      placeholder={placeholder}
-      bind:value={value}
-      readonly
-      aria-labelledby={inputId}
-    />
   {/if}
   <button type="button" class="browse-btn" onclick={selectDirectory}>Browse</button>
 </div>
@@ -46,6 +94,7 @@
   .folder-input {
     display: flex;
     gap: 0.5rem;
+    position: relative;
   }
   .input {
     width: 100%;
@@ -67,6 +116,21 @@
   }
   .input.has-options {
     background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23667eea' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+    padding-right: 2.5rem;
+  }
+  
+  .dropdown-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: calc(100% - 80px); /* Leave space for the Browse button */
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23667eea' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 0.7rem center;
+    background-size: 1.2em;
     padding-right: 2.5rem;
   }
   .input:hover {
