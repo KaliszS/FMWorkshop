@@ -17,6 +17,7 @@
     error = "",
     pathMapping = [],
     onCustomPath = undefined,
+    descriptions = [],
   }: {
     label: string;
     required: boolean;
@@ -28,6 +29,7 @@
     error?: string;
     pathMapping?: Array<{ label: string; path: string }>;
     onCustomPath?: (path: string) => void;
+    descriptions?: string[];
   } = $props();
 
   // Generate a unique id for the input
@@ -56,7 +58,7 @@
     
     <div class="input-wrapper">
       {#if type === ConfigOptionType.Radio}
-        <RadioGroup {label} {options} bind:value={value} />
+        <RadioGroup {label} {options} bind:value={value} {descriptions} />
       {:else if type === ConfigOptionType.Select}
         <SelectInput {options} bind:value={value} {placeholder} />
       {:else if type === ConfigOptionType.Input}

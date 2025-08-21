@@ -2,16 +2,16 @@
   import ConfigOption from './ConfigOption.svelte';
   import { ConfigOptionType } from '$lib/types';
   import { handleModProcessing } from '$lib/modProcessor';
-  import { getRetroRegensPaths, getRetroRegensPathFromLabel, type PathMapping } from '$lib/types';
+  import { getRetroRegensPaths, type PathMapping, mapRegensTypeToValue, REGENS_TYPE_OPTIONS } from '$lib/types';
 
-  let { action = $bindable(), edition = $bindable(), gameVersion = $bindable(""), modFile = $bindable(""), gameFolder = $bindable(), restoreFolder = $bindable(""), retroRegensFolder = $bindable("") }: {
+  let { action = $bindable(), edition = $bindable(), modFile = $bindable(""), gameFolder = $bindable(), restoreFolder = $bindable(""), retroRegensFolder = $bindable(""), regensType = $bindable("") }: {
     action: "Install Mod" | "Uninstall Mod";
     edition: string;
-    gameVersion: string;
     modFile: string;
     gameFolder: string;
     restoreFolder: string;
     retroRegensFolder: string;
+    regensType: string;
   } = $props();
 
   // Mutable path mapping for retro regens
@@ -19,8 +19,8 @@
 
   // Get retro regens options with labels and paths
   let retroRegensOptions = $derived(() => {
-    if (!edition || !gameVersion) return [];
-    return getRetroRegensPaths(edition, gameVersion);
+    if (!edition) return [];
+    return getRetroRegensPaths(edition);
   });
 
   // Initialize path mapping when options change
@@ -46,15 +46,19 @@
     }
   }
 
+  // Clear retro regens folder when regens type is deselected
+  $effect(() => {
+    if (!regensType || regensType.trim() === "") {
+      retroRegensFolder = "";
+    }
+  });
+
+  let retroRegensFolderError = $derived(() => {
+    return ""; // No validation needed since retro regens folder is optional
+  });
+
   let actionError = $derived(() => !action ? "Select an action" : "");
   let editionError = $derived(() => !/^\d{4}$/.test(edition) ? "Enter a valid 4-digit year (e.g., 2024)" : "");
-  let gameVersionError = $derived(() => {
-    if (!edition || edition.trim() === "") return "";
-    if (!/^\d{4}$/.test(gameVersion)) return "Enter a valid 4-digit version (e.g., 2400)";
-    if (gameVersion.substring(0, 2) !== edition.substring(2, 4)) return "First two digits must match last two digits of edition";
-    if (gameVersion.charAt(3) !== "0") return "Last digit must be 0";
-    return "";
-  });
   let modFileError = $derived(() => {
     if (action !== "Install Mod") return "";
     return (!modFile || modFile.trim() === "") ? "Select a mod file" : "";
@@ -64,13 +68,9 @@
     if (action !== "Uninstall Mod") return "";
     return (!restoreFolder || restoreFolder.trim() === "") ? "Select restore folder location" : "";
   });
-  let retroRegensFolderError = $derived(() => {
-    if (!edition || edition.trim() === "" || !gameVersion || gameVersion.trim() === "") return "";
-    return retroRegensFolder.trim() === "" ? "Select Retro Regens folder location" : "";
-  });
 
   const isFormValid = $derived(() => {
-    return !actionError() && !editionError() && !gameVersionError() && !modFileError() && !gameFolderError() && !restoreFolderError() && !retroRegensFolderError();
+    return !actionError() && !editionError() && !modFileError() && !gameFolderError() && !restoreFolderError();
   });
 
   async function handleProcess() {
@@ -78,11 +78,11 @@
       await handleModProcessing({
         action,
         edition,
-        gameVersion,
         modFile,
         gameFolder,
         restoreFolder,
-        retroRegensFolder
+        retroRegensFolder: regensType ? retroRegensFolder : undefined,
+        regensType: mapRegensTypeToValue(regensType)
       });
     } catch (error) {
       console.error("Error in component:", error);
@@ -138,42 +138,53 @@
           error={editionError()}
         />
         <ConfigOption
-          label="Game Folder Location"
+          label="Game Folder"
           type={ConfigOptionType.Folder}
           required={true}
-          placeholder="Documents/Sports Interactive/Football Manager {edition}"
           bind:value={gameFolder}
-          hint="Location of your Football Manager installation"
+          hint="Location of the game installation"
           error={gameFolderError()}
         />
       </div>
-      <div class="config-row">
-        {#if edition && edition.trim() !== "" && !editionError()}
+      {#if action === "Install Mod" && edition && edition.trim() !== "" && !editionError()}
+        <div class="config-row">
           <ConfigOption
-            label="Game Version"
-            type={ConfigOptionType.Input}
-            required={true}
-            placeholder="e.g. 2400"
-            bind:value={gameVersion}
-            hint="Game version (first 2 digits from edition, last digit must be 0)"
-            error={gameVersionError()}
+            label="Regens Type"
+            type={ConfigOptionType.Radio}
+            required={false}
+            options={REGENS_TYPE_OPTIONS.map(opt => opt.display)}
+            bind:value={regensType}
+            hint="Choose regens file type (optional - if not selected, regens mod won't be installed)"
+            descriptions={REGENS_TYPE_OPTIONS.map(opt => opt.description)}
           />
-        {/if}
-        {#if edition && edition.trim() !== "" && !editionError() && gameVersion && gameVersion.trim() !== "" && !gameVersionError()}
+          {#if regensType && regensType.trim() !== ""}
+            <ConfigOption
+              label="Retro Regens Folder"
+              type={ConfigOptionType.Folder}
+              required={false}
+              options={retroRegensPathMapping.map(option => option.label)}
+              bind:value={retroRegensFolder}
+              hint="Location for Retro Regens files (optional)"
+              pathMapping={retroRegensPathMapping}
+              onCustomPath={handleRetroRegensCustomPath}
+            />
+          {/if}
+        </div>
+      {/if}
+      {#if action === "Uninstall Mod" && edition && edition.trim() !== "" && !editionError()}
+        <div class="config-row">
           <ConfigOption
             label="Retro Regens Folder"
             type={ConfigOptionType.Folder}
-            required={true}
+            required={false}
             options={retroRegensPathMapping.map(option => option.label)}
             bind:value={retroRegensFolder}
-            hint="Location for Retro Regens files"
-            error={retroRegensFolderError()}
+            hint="Location for Retro Regens files (optional - if not selected, no regens will be uninstalled)"
             pathMapping={retroRegensPathMapping}
             onCustomPath={handleRetroRegensCustomPath}
-
           />
-        {/if}
-      </div>
+        </div>
+      {/if}
     </div>
 
     <div class="config-actions">
