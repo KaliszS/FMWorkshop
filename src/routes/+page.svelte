@@ -1,33 +1,31 @@
 <script lang="ts">
-  import { unpackRar } from "$lib/api";
   import Configuration from '../lib/components/Configuration.svelte';
-  const appVersion = "0.1.0";
+  import { CONFIG_STRINGS } from '$lib/strings';
 
-  let action = $state("");
+  let action: "Install Mod" | "Uninstall Mod" = $state("Install Mod");
   let edition = $state("");
-  let gameVersion = $state("");
   let modFile = $state("");
   let gameFolder = $state("");
   let restoreFolder = $state("");
   let retroRegensFolder = $state("");
+  let regensType = $state("");
 </script>
 
 <main class="container">
   <div class="header">
-    <h1 class="app-title">FM Workshop</h1>
+    <h1 class="app-title">{CONFIG_STRINGS.MAIN_PAGE.APP_TITLE}</h1>
     <p class="app-description">
-      A utility to help you install retro databases for Football Manager games.
+      {CONFIG_STRINGS.MAIN_PAGE.APP_DESCRIPTION}
     </p>
   </div>
 
   <div class="content">
-    <Configuration bind:action bind:edition bind:gameVersion bind:modFile bind:gameFolder bind:restoreFolder bind:retroRegensFolder />
-    <button onclick={() => unpackRar(modFile)}>Unpack RAR</button>
+    <Configuration bind:action bind:edition bind:modFile bind:gameFolder bind:restoreFolder bind:retroRegensFolder bind:regensType />
   </div>
 </main>
 
 <footer class="footer">
-  <span class="version">v{appVersion}</span>
+  <span class="version">{CONFIG_STRINGS.MAIN_PAGE.VERSION}</span>
 </footer>
 
 <style>

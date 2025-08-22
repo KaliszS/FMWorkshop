@@ -1,10 +1,11 @@
 <script lang="ts">
   import { loadFile } from "$lib/api";
+  import { CONFIG_STRINGS } from "$lib/strings";
 
   let { 
     value = $bindable(), 
     placeholder = '', 
-    label = 'Select folder', 
+    label = CONFIG_STRINGS.FOLDER_INPUT.SELECT_FOLDER, 
     options = [],
     pathMapping = [],
     onCustomPath = undefined
@@ -22,30 +23,19 @@
   async function selectDirectory() {
     let path = await loadFile(true);
     if (path) {
-      console.log('selectDirectory: Selected path:', path);
-      console.log('selectDirectory: Label:', label);
-      console.log('selectDirectory: onCustomPath exists:', !!onCustomPath);
-      
-      // If this is a retro regens folder and we have a custom path handler, add it to the mapping
-      if (label === 'Retro Regens Folder' && onCustomPath) {
-        console.log('selectDirectory: Calling onCustomPath with:', path);
+      if (label === CONFIG_STRINGS.FOLDER_INPUT.RETRO_REGENS_FOLDER && onCustomPath) {
         onCustomPath(path);
-        // The value will be set by the onCustomPath handler in the parent component
       } else {
-        // For non-retro regens folders, just set the value directly
-        console.log('selectDirectory: Setting value directly to:', path);
         value = path;
       }
     }
   }
 
-  // Handle dropdown selection
   function handleDropdownChange(e: Event) {
     const target = e.target as HTMLSelectElement;
     const selectedLabel = target.value;
     
-    if (selectedLabel && label === 'Retro Regens Folder') {
-      // Find the corresponding path from the mapping
+    if (selectedLabel && label === CONFIG_STRINGS.FOLDER_INPUT.RETRO_REGENS_FOLDER) {
       const mapping = pathMapping.find(m => m.label === selectedLabel);
       if (mapping) {
         value = mapping.path;
@@ -53,9 +43,8 @@
     }
   }
   
-  // Get the current selected label for the dropdown
   let currentSelectedLabel = $derived(() => {
-    if (label === 'Retro Regens Folder' && value) {
+    if (label === CONFIG_STRINGS.FOLDER_INPUT.RETRO_REGENS_FOLDER && value) {
       const mapping = pathMapping.find(m => m.path === value);
       return mapping ? mapping.label : '';
     }
@@ -81,13 +70,13 @@
       value={currentSelectedLabel()}
       onchange={handleDropdownChange}
     >
-      <option value="">{placeholder || 'Select an option or browse...'}</option>
+      <option value="">{placeholder || CONFIG_STRINGS.FOLDER_INPUT.SELECT_OPTION_OR_BROWSE}</option>
       {#each options as option}
         <option value={option}>{option}</option>
       {/each}
     </select>
   {/if}
-  <button type="button" class="browse-btn" onclick={selectDirectory}>Browse</button>
+  <button type="button" class="browse-btn" onclick={selectDirectory}>{CONFIG_STRINGS.FOLDER_INPUT.BROWSE}</button>
 </div>
 
 <style>

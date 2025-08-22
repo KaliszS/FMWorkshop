@@ -1,8 +1,13 @@
 <script lang="ts">
   import ConfigOption from './ConfigOption.svelte';
+  import ErrorNotification from './ErrorNotification.svelte';
+  import SuccessNotification from './SuccessNotification.svelte';
+  import UnpackProgress from './UnpackProgress.svelte';
   import { ConfigOptionType } from '$lib/types';
   import { handleModProcessing } from '$lib/modProcessor';
+  import { getUnpackProgress, getFileTransferProgress } from '$lib/api';
   import { getRetroRegensPaths, type PathMapping, mapRegensTypeToValue, REGENS_TYPE_OPTIONS } from '$lib/types';
+  import { CONFIG_STRINGS } from '$lib/strings';
 
   let { action = $bindable(), edition = $bindable(), modFile = $bindable(""), gameFolder = $bindable(), restoreFolder = $bindable(""), retroRegensFolder = $bindable(""), regensType = $bindable("") }: {
     action: "Install Mod" | "Uninstall Mod";
@@ -14,39 +19,43 @@
     regensType: string;
   } = $props();
 
-  // Mutable path mapping for retro regens
   let retroRegensPathMapping = $state<PathMapping[]>([]);
 
-  // Get retro regens options with labels and paths
+  let processingError = $state("");
+  let processingSuccess = $state("");
+  let isProcessing = $state(false);
+
+  let showUnpackProgress = $state(false);
+  let unpackProgress = $state(0);
+  let unpackTotal = $state(0);
+  let progressInterval: number | null = null;
+  
+  let isFileTransfer = $state(false);
+  let fileTransferProgress = $state(0);
+  let fileTransferTotal = $state(0);
+  
+  let progressStartTime = $state(0);
+  const MINIMUM_PROGRESS_DISPLAY_TIME = 2000;
+
   let retroRegensOptions = $derived(() => {
     if (!edition) return [];
     return getRetroRegensPaths(edition);
   });
 
-  // Initialize path mapping when options change
   $effect(() => {
     if (retroRegensOptions().length > 0) {
       retroRegensPathMapping = [...retroRegensOptions()];
     }
   });
 
-  // Handle adding custom path from browse
   function handleRetroRegensCustomPath(customPath: string) {
-    console.log('handleRetroRegensCustomPath called with:', customPath);
-    console.log('Current mapping:', retroRegensPathMapping);
-    
     if (customPath && !retroRegensPathMapping.find(p => p.path === customPath)) {
       retroRegensPathMapping = [...retroRegensPathMapping, { label: customPath, path: customPath }];
       retroRegensFolder = customPath;
-      console.log('Updated mapping:', retroRegensPathMapping);
-      console.log('Updated retroRegensFolder:', retroRegensFolder);
-      
-      // Force a UI update by triggering a reactive change
       retroRegensPathMapping = [...retroRegensPathMapping];
     }
   }
 
-  // Clear retro regens folder when regens type is deselected
   $effect(() => {
     if (!regensType || regensType.trim() === "") {
       retroRegensFolder = "";
@@ -54,19 +63,19 @@
   });
 
   let retroRegensFolderError = $derived(() => {
-    return ""; // No validation needed since retro regens folder is optional
+    return "";
   });
 
-  let actionError = $derived(() => !action ? "Select an action" : "");
-  let editionError = $derived(() => !/^\d{4}$/.test(edition) ? "Enter a valid 4-digit year (e.g., 2024)" : "");
+  let actionError = $derived(() => !action ? CONFIG_STRINGS.ERRORS.SELECT_ACTION : "");
+  let editionError = $derived(() => !/^\d{4}$/.test(edition) ? CONFIG_STRINGS.ERRORS.ENTER_VALID_YEAR : "");
   let modFileError = $derived(() => {
-    if (action !== "Install Mod") return "";
-    return (!modFile || modFile.trim() === "") ? "Select a mod file" : "";
+    if (action !== CONFIG_STRINGS.ACTION_OPTIONS.INSTALL_MOD) return "";
+    return (!modFile || modFile.trim() === "") ? CONFIG_STRINGS.ERRORS.SELECT_MOD_FILE : "";
   });
-  let gameFolderError = $derived(() => gameFolder.trim() === "" ? "Enter the game folder location" : "");
+  let gameFolderError = $derived(() => gameFolder.trim() === "" ? CONFIG_STRINGS.ERRORS.ENTER_GAME_FOLDER : "");
   let restoreFolderError = $derived(() => {
-    if (action !== "Uninstall Mod") return "";
-    return (!restoreFolder || restoreFolder.trim() === "") ? "Select restore folder location" : "";
+    if (action !== CONFIG_STRINGS.ACTION_OPTIONS.UNINSTALL_MOD) return "";
+    return (!restoreFolder || restoreFolder.trim() === "") ? CONFIG_STRINGS.ERRORS.SELECT_RESTORE_FOLDER : "";
   });
 
   const isFormValid = $derived(() => {
@@ -75,6 +84,22 @@
 
   async function handleProcess() {
     try {
+      processingError = "";
+      processingSuccess = "";
+      isProcessing = true;
+      
+      if (action === CONFIG_STRINGS.ACTION_OPTIONS.INSTALL_MOD) {
+        progressStartTime = Date.now();
+        showUnpackProgress = true;
+        unpackProgress = 0;
+        unpackTotal = 0;
+        isFileTransfer = false;
+        
+        setTimeout(() => {
+          startProgressPolling();
+        }, 100);
+      }
+      
       await handleModProcessing({
         action,
         edition,
@@ -84,102 +109,176 @@
         retroRegensFolder: regensType ? retroRegensFolder : undefined,
         regensType: mapRegensTypeToValue(regensType)
       });
+      
+      processingSuccess = action === CONFIG_STRINGS.ACTION_OPTIONS.INSTALL_MOD 
+        ? CONFIG_STRINGS.SUCCESS.INSTALL_COMPLETE 
+        : CONFIG_STRINGS.SUCCESS.UNINSTALL_COMPLETE;
+      
     } catch (error) {
-      console.error("Error in component:", error);
+      processingError = error instanceof Error ? error.message : String(error);
+    } finally {
+      if (showUnpackProgress) {
+        const elapsedTime = Date.now() - progressStartTime;
+        const remainingTime = Math.max(0, MINIMUM_PROGRESS_DISPLAY_TIME - elapsedTime);
+        
+        if (remainingTime > 0) {
+          await new Promise(resolve => setTimeout(resolve, remainingTime));
+        }
+      }
+      
+      isProcessing = false;
+      showUnpackProgress = false;
+      stopProgressPolling();
+      isFileTransfer = false;
     }
+  }
+
+  function startProgressPolling() {
+    if (progressInterval) return;
+    
+    progressInterval = setInterval(async () => {
+      try {
+        if (isFileTransfer) {
+          const fileProgress = await getFileTransferProgress();
+          if (fileProgress.current !== fileTransferProgress || fileProgress.total !== fileTransferTotal) {
+            fileTransferProgress = fileProgress.current;
+            fileTransferTotal = fileProgress.total;
+          }
+        } else {
+          const progress = await getUnpackProgress(modFile);
+          
+          if (progress) {
+            if (unpackProgress !== progress.progress || unpackTotal !== progress.total) {
+              unpackProgress = progress.progress;
+              unpackTotal = progress.total;
+            }
+          } else {
+            unpackProgress = unpackTotal;
+            isFileTransfer = true;
+            fileTransferProgress = 0;
+            fileTransferTotal = 1;
+          }
+        }
+      } catch (error) {
+        console.error('Progress polling error:', error);
+      }
+    }, 250);
+  }
+
+  function stopProgressPolling() {
+    if (progressInterval) {
+      clearInterval(progressInterval);
+      progressInterval = null;
+    }
+  }
+
+  function clearError() {
+    processingError = "";
+  }
+
+  function clearSuccess() {
+    processingSuccess = "";
+  }
+
+  function closeUnpackProgress() {
+    showUnpackProgress = false;
+    processingSuccess = CONFIG_STRINGS.SUCCESS.PROGRESS_WINDOW_CLOSED;
+    setTimeout(() => {
+      processingSuccess = "";
+    }, 5000);
   }
 </script>
 
 <div class="configuration">
   <div class="config-header">
-    <h2 class="section-title">Configuration</h2>
+    <h2 class="section-title">{CONFIG_STRINGS.SECTION_TITLE}</h2>
   </div>
   
   <div class="config-content">
     <div class="config-section">
       <div class="config-row">
         <ConfigOption
-          label="Action"
+          label={CONFIG_STRINGS.ACTION_LABEL}
           type={ConfigOptionType.Radio}
           required={true}
-          options={["Install Mod", "Uninstall Mod"]}
+          options={[CONFIG_STRINGS.ACTION_OPTIONS.INSTALL_MOD, CONFIG_STRINGS.ACTION_OPTIONS.UNINSTALL_MOD]}
           bind:value={action}
-          hint="Choose whether to install or uninstall a mod"
+          hint={CONFIG_STRINGS.ACTION_HINT}
         />
-        {#if action === "Install Mod"}
+        {#if action === CONFIG_STRINGS.ACTION_OPTIONS.INSTALL_MOD}
           <ConfigOption
-            label="Mod File"
+            label={CONFIG_STRINGS.MOD_FILE_LABEL}
             type={ConfigOptionType.File}
             required={true}
             bind:value={modFile}
-            hint="Select a .zip file containing the mod"
+            hint={CONFIG_STRINGS.MOD_FILE_HINT}
             error={modFileError()}
           />
         {/if}
-        {#if action === "Uninstall Mod"}
+        {#if action === CONFIG_STRINGS.ACTION_OPTIONS.UNINSTALL_MOD}
           <ConfigOption
-            label="Restore Folder"
+            label={CONFIG_STRINGS.RESTORE_FOLDER_LABEL}
             type={ConfigOptionType.Folder}
             required={true}
             bind:value={restoreFolder}
-            hint="Select where to restore the original files"
+            hint={CONFIG_STRINGS.RESTORE_FOLDER_HINT}
             error={restoreFolderError()}
           />
         {/if}
       </div>
       <div class="config-row">
         <ConfigOption
-          label="Football Manager Edition"
+          label={CONFIG_STRINGS.EDITION_LABEL}
           type={ConfigOptionType.Input}
           required={true}
-          placeholder="e.g. 2024"
+          placeholder={CONFIG_STRINGS.EDITION_PLACEHOLDER}
           bind:value={edition}
-          hint="Choose year the game starts"
+          hint={CONFIG_STRINGS.EDITION_HINT}
           error={editionError()}
         />
         <ConfigOption
-          label="Game Folder"
+          label={CONFIG_STRINGS.GAME_FOLDER_LABEL}
           type={ConfigOptionType.Folder}
           required={true}
           bind:value={gameFolder}
-          hint="Location of the game installation"
+          hint={CONFIG_STRINGS.GAME_FOLDER_HINT}
           error={gameFolderError()}
         />
       </div>
-      {#if action === "Install Mod" && edition && edition.trim() !== "" && !editionError()}
+      {#if action === CONFIG_STRINGS.ACTION_OPTIONS.INSTALL_MOD && edition && edition.trim() !== "" && !editionError()}
         <div class="config-row">
           <ConfigOption
-            label="Regens Type"
+            label={CONFIG_STRINGS.REGENS_TYPE_LABEL}
             type={ConfigOptionType.Radio}
             required={false}
             options={REGENS_TYPE_OPTIONS.map(opt => opt.display)}
             bind:value={regensType}
-            hint="Choose regens file type (optional - if not selected, regens mod won't be installed)"
+            hint={CONFIG_STRINGS.REGENS_TYPE_HINT}
             descriptions={REGENS_TYPE_OPTIONS.map(opt => opt.description)}
           />
           {#if regensType && regensType.trim() !== ""}
             <ConfigOption
-              label="Retro Regens Folder"
+              label={CONFIG_STRINGS.RETRO_REGENS_FOLDER_LABEL}
               type={ConfigOptionType.Folder}
               required={false}
               options={retroRegensPathMapping.map(option => option.label)}
               bind:value={retroRegensFolder}
-              hint="Location for Retro Regens files (optional)"
+              hint={CONFIG_STRINGS.RETRO_REGENS_FOLDER_HINT}
               pathMapping={retroRegensPathMapping}
               onCustomPath={handleRetroRegensCustomPath}
             />
           {/if}
         </div>
       {/if}
-      {#if action === "Uninstall Mod" && edition && edition.trim() !== "" && !editionError()}
+      {#if action === CONFIG_STRINGS.ACTION_OPTIONS.UNINSTALL_MOD && edition && edition.trim() !== "" && !editionError()}
         <div class="config-row">
           <ConfigOption
-            label="Retro Regens Folder"
+            label={CONFIG_STRINGS.RETRO_REGENS_FOLDER_LABEL}
             type={ConfigOptionType.Folder}
             required={false}
             options={retroRegensPathMapping.map(option => option.label)}
             bind:value={retroRegensFolder}
-            hint="Location for Retro Regens files (optional - if not selected, no regens will be uninstalled)"
+            hint={CONFIG_STRINGS.RETRO_REGENS_FOLDER_UNINSTALL_HINT}
             pathMapping={retroRegensPathMapping}
             onCustomPath={handleRetroRegensCustomPath}
           />
@@ -190,17 +289,39 @@
     <div class="config-actions">
       <button 
         class="process-btn" 
-        disabled={!isFormValid()}
+        class:processing={isProcessing}
+        disabled={!isFormValid() || isProcessing}
         onclick={handleProcess}
       >
-        <span class="btn-text">
-          {action === "Install Mod" ? "Install Mod" : action === "Uninstall Mod" ? "Uninstall Mod" : "Process"}
-        </span>
-        <span class="btn-icon">→</span>
+        {#if isProcessing}
+          <span class="btn-text">{CONFIG_STRINGS.BUTTONS.PROCESSING}</span>
+          <span class="btn-icon">→</span>
+        {:else}
+          <span class="btn-text">
+            {action === CONFIG_STRINGS.ACTION_OPTIONS.INSTALL_MOD ? CONFIG_STRINGS.BUTTONS.INSTALL_MOD : action === CONFIG_STRINGS.ACTION_OPTIONS.UNINSTALL_MOD ? CONFIG_STRINGS.BUTTONS.UNINSTALL_MOD : CONFIG_STRINGS.BUTTONS.PROCESS}
+          </span>
+          <span class="btn-icon">→</span>
+        {/if}
       </button>
+      
+      {#if showUnpackProgress}
+        <UnpackProgress
+          isVisible={showUnpackProgress}
+          progress={unpackProgress}
+          total={unpackTotal}
+          isFileTransfer={isFileTransfer}
+          fileTransferProgress={fileTransferProgress}
+          fileTransferTotal={fileTransferTotal}
+          onClose={closeUnpackProgress}
+        />
+      {/if}
     </div>
   </div>
 </div>
+
+<ErrorNotification error={processingError} onClose={clearError} />
+<SuccessNotification message={processingSuccess} onClose={clearSuccess} />
+
 
 <style>
   .configuration {
@@ -266,6 +387,31 @@
     cursor: not-allowed;
     box-shadow: none;
     pointer-events: none;
+  }
+
+  .process-btn:disabled:not(.processing) {
+    opacity: 0.5;
+    background: #ccc;
+    color: #888;
+    cursor: not-allowed;
+    box-shadow: none;
+    pointer-events: none;
+  }
+
+  .process-btn.processing {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    cursor: wait;
+    opacity: 0.8;
+  }
+
+  .process-btn.processing .btn-icon {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
   }
 
   .btn-icon {

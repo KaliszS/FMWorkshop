@@ -1,18 +1,19 @@
 <script lang="ts">
   import { loadFile } from "$lib/api";
+  import { CONFIG_STRINGS } from "$lib/strings";
 
   let {value = $bindable()}: {
     value: string
   } = $props();
 
   async function selectFile() {
-    let path = await loadFile(true);
+    let path = await loadFile(false);
     if (path) {
-      // if (!path.endsWith('.zip') && !path.endsWith('.rar')) {
-      //   value = "";
-      // } else {
-      //   value = path;
-      // }
+      if (path.endsWith('.zip') || path.endsWith('.rar')) {
+        value = path;
+      } else {
+        value = "";
+      }
       value = path;
     }
   }
@@ -21,7 +22,7 @@
 <div class="file-input-container">
   <button type="button" class="file-label" onclick={selectFile}>
     <span class="file-icon">📁</span>
-    <span class="file-text">{value ? value : 'Choose ZIP or RAR file'}</span>
+    <span class="file-text">{value ? value : CONFIG_STRINGS.FILE_INPUT.CHOOSE_FILE}</span>
   </button>
 </div>
 

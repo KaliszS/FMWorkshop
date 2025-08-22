@@ -25,7 +25,7 @@ export const REGENS_TYPE_OPTIONS = [
     {
         display: "Fixed Potential Ability",
         value: "fixed_pa",
-        description: "All players get their historical potential ability (PA) values. Messi would get 199 PA, Ronaldo 195 PA, etc."
+        description: "All players get their historical potential ability (PA) values."
     },
     {
         display: "Random Potential Ability", 
@@ -43,11 +43,6 @@ export function mapRegensTypeToValue(displayValue: string): string {
     const option = REGENS_TYPE_OPTIONS.find(opt => opt.display === displayValue);
     return option ? option.value : "";
 }
-
-// export function getRegensTypeDescription(displayValue: string): string {
-//     const option = REGENS_TYPE_OPTIONS.find(opt => opt.display === displayValue);
-//     return option ? option.description : "";
-// }
 
 export const getRetroRegensPaths = (edition: string): PathMapping[] => [
   {

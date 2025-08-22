@@ -1,6 +1,7 @@
 import { transfer, isDir } from "tauri-plugin-fs-pro-api";
 import { invoke } from "@tauri-apps/api/core";
 import type { ModProcessingOptions } from '$lib/types';
+import { unpackZip, getUnpackProgress, setFileTransferProgress } from '$lib/api';
 
 export async function handleModProcessing(options: ModProcessingOptions): Promise<void> {
     try {
@@ -20,11 +21,35 @@ export async function handleModProcessing(options: ModProcessingOptions): Promis
 }
 
 async function installMod(options: ModProcessingOptions): Promise<void> {
-    const { modFile, gameFolder, edition, retroRegensFolder, regensType } = options;
+    let { modFile, gameFolder, edition, retroRegensFolder, regensType } = options;
 
     if (!modFile) {
-        throw new Error("Mod file is required for install operation");
+        throw new Error("Rar file is required for install operation");
     }
+
+    await unpackZip(modFile);
+    
+    let unpackCompleted = false;
+    
+    while (!unpackCompleted) {
+        try {
+            const progress = await getUnpackProgress(modFile);
+            if (!progress) {
+                unpackCompleted = true;
+                break;
+            }
+            await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (error) {
+            console.error("Error checking unpack progress:", error);
+        }
+    }
+    
+    const targetDir = modFile.split('/').slice(0, -1).join('/');
+    const archiveName = modFile.split('/').pop()?.replace(/\.(rar|zip)$/i, '') || '';
+    const unpackedPath = `${targetDir}/${archiveName}`;
+    
+    // Override modFile with the unpacked directory path
+    modFile = unpackedPath;
 
     const modFileUnpackedGameRoot = `${modFile}/Football Manager ${edition}`;
 
@@ -33,8 +58,6 @@ async function installMod(options: ModProcessingOptions): Promise<void> {
     }
 
     if (await isDir(gameFolder)) {
-        console.log("Game location to install mod exists:", gameFolder);
-        
         await createBackup(gameFolder, edition);
         await replaceGameFolder(gameFolder);
     } else {
@@ -42,12 +65,9 @@ async function installMod(options: ModProcessingOptions): Promise<void> {
     }
 
     await transfer(modFileUnpackedGameRoot, gameFolder);
-    console.log("Game mod files transferred successfully!");
 
     if (regensType && retroRegensFolder) {
         await processRegensFile(modFile, regensType, retroRegensFolder);
-    } else {
-        console.log("No regens type selected or retro regens folder specified, skipping regens installation");
     }
 }
 
@@ -105,11 +125,11 @@ async function processRegensFile(modFile: string, regensType: string, retroRegen
         
         retroRegensFolder = await updateRetroRegensFolder(retroRegensFolder, extractedGameVersion);
         
-        const sourcePath = `${modFile}/${regensFile}`;
+        // const sourcePath = `${modFile}/${regensFile}`;
         const targetFilePath = `${retroRegensFolder}/support_staff.edt`;
         
-        await invoke("copy_file", { fromPath: sourcePath, toPath: targetFilePath });
-        console.log(`Regens file copied: ${sourcePath} -> ${targetFilePath}`);
+        await invoke("copy_file", { fromPath: regensFile, toPath: targetFilePath });
+        console.log(`Regens file copied: ${regensFile} -> ${targetFilePath}`);
         
     } catch (error) {
         console.error("Error processing regens file:", error);
@@ -182,4 +202,33 @@ async function replaceGameFolder(gameFolder: string): Promise<void> {
 
 async function getBackupFolderName(gameFolder: string, edition: string): Promise<string> {
     return gameFolder.replace(edition, `${edition}_backup`);
+}
+
+async function countFilesInDirectory(dirPath: string): Promise<number> {
+    let count = 0;
+    try {
+        const entries = await invoke("read_dir", { path: dirPath }) as string[];
+        for (const entry of entries) {
+            if (await isDir(entry)) {
+                count += await countFilesInDirectory(entry);
+            } else {
+                count += 1;
+            }
+        }
+    } catch (error) {
+        console.error("Error counting files:", error);
+    }
+    return count;
+}
+
+async function transferWithProgress(source: string, destination: string): Promise<void> {
+    // Count total files to transfer
+    const totalFiles = await countFilesInDirectory(source);
+    await setFileTransferProgress(0, totalFiles);
+    
+    // Perform the transfer
+    await transfer(source, destination);
+    
+    // Mark as complete
+    await setFileTransferProgress(totalFiles, totalFiles);
 }
